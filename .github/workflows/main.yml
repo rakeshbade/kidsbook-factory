@@ -18,7 +18,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests pillow reportlab google-generativeai
+        run: pip install requests pillow reportlab google-generativeai google-genai
 
       - name: Extract prompt from issue
         run: |
@@ -37,11 +37,12 @@ jobs:
         run: |
           python generate_story.py
 
-      - name: Generate 20 images with Gemini Imagen 3 (free tier)
+      - name: Generate 20 images with Imagen 4.0
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python generate_images.py
+        continue-on-error: true
 
       - name: Auto-crop Gemini watermark (bottom-right corner)
         run: |
@@ -80,3 +81,6 @@ jobs:
           body: |
             Book ready! Download print-ready PDF here:
             https://drive.google.com/drive/folders/YOUR_FOLDER_LINK
+            
+            **Note:** Image generation requires billing to be enabled on your Google Cloud account.
+            Enable billing at: https://console.cloud.google.com/billing
