@@ -4,7 +4,7 @@ from PIL import Image
 import requests
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 prompts = json.load(open("image_prompts.json"))
 os.makedirs("images", exist_ok=True)
