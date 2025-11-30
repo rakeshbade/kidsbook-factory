@@ -18,7 +18,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests pillow reportlab google-generativeai google-genai
+        run: pip install requests pillow reportlab google-generativeai huggingface_hub
 
       - name: Extract prompt from issue
         run: |
@@ -37,25 +37,23 @@ jobs:
         run: |
           python generate_story.py
 
-      - name: Generate 20 images with Imagen 4.0
+      - name: Generate 20 images with Hugging Face FLUX (FREE)
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           python generate_images.py
-        continue-on-error: true
 
-      - name: Auto-crop Gemini watermark (bottom-right corner)
+      - name: Process images (resize if needed)
         run: |
           mkdir -p clean_images
           python -c "
           from PIL import Image
           import os
-          for f in os.listdir('images'):
+          for f in sorted(os.listdir('images')):
             if f.endswith('.png'):
               img = Image.open(f'images/{f}')
-              w, h = img.size
-              # Crop out bottom 80px and right 100px where watermark lives
-              img = img.crop((0, 0, w-100, h-80))
+              # FLUX images are already clean (no watermark)
+              # Just copy them to clean_images
               img.save(f'clean_images/{f}')
           "
 
@@ -79,8 +77,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.issue.number }}
           body: |
-            Book ready! Download print-ready PDF here:
+            📚 Book ready! Download print-ready PDF here:
             https://drive.google.com/drive/folders/YOUR_FOLDER_LINK
             
-            **Note:** Image generation requires billing to be enabled on your Google Cloud account.
-            Enable billing at: https://console.cloud.google.com/billing
+            **Powered by:**
+            - 📝 Story: Gemini 2.5 Flash (Google AI)
+            - 🎨 Images: FLUX.1-schnell (Hugging Face - FREE)
