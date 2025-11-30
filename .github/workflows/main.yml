@@ -31,7 +31,7 @@ jobs:
             f.write(f'Title: {title}\n\nStory prompt: {body}\nGenerate exactly 20 pages with one illustration prompt per page.')
           "
 
-      - name: Generate story with Gemini 1.5 Flash (free)
+      - name: Generate story with Gemini (free)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # get free at https://aistudio.google.com
         run: |
