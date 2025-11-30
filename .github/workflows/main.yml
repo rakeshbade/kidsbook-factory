@@ -1,0 +1,82 @@
+# .github/workflows/create-book.yml
+name: Create Children's Book
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  generate-book:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pillow reportlab google-generativeai
+
+      - name: Extract prompt from issue
+        run: |
+          python -c "
+          import os, json
+          payload = json.loads(open(os.environ['GITHUB_EVENT_PATH']).read())
+          title = payload['issue']['title']
+          body = payload['issue']['body']
+          with open('prompt.txt', 'w') as f:
+            f.write(f'Title: {title}\n\nStory prompt: {body}\nGenerate exactly 20 pages with one illustration prompt per page.')
+          "
+
+      - name: Generate story with Gemini 1.5 Flash (free)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # get free at https://aistudio.google.com
+        run: |
+          python generate_story.py
+
+      - name: Generate 20 images with Gemini Imagen 3 (free tier)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python generate_images.py
+
+      - name: Auto-crop Gemini watermark (bottom-right corner)
+        run: |
+          mkdir -p clean_images
+          python -c "
+          from PIL import Image
+          import os
+          for f in os.listdir('images'):
+            if f.endswith('.png'):
+              img = Image.open(f'images/{f}')
+              w, h = img.size
+              # Crop out bottom 80px and right 100px where watermark lives
+              img = img.crop((0, 0, w-100, h-80))
+              img.save(f'clean_images/{f}')
+          "
+
+      - name: Create print-ready PDF (8.5×8.5", 300 DPI, bleed)
+        run: |
+          python create_pdf.py
+
+      - name: Upload PDF to Google Drive (free rclone method)
+        env:
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+        run: |
+          curl -s https://rclone.org/install.sh | sudo bash
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONFIG_GDRIVE_TOKEN" > ~/.config/rclone/rclone.conf
+          rclone copy "output/${{ github.run_number }}_${{ github.issue.title }}.pdf" gdrive:KidsBooks/
+
+      - name: Comment download link on issue
+        uses: actions-cool/issues-helper@v3
+        with:
+          actions: 'create-comment'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Book ready! Download print-ready PDF here:
+            https://drive.google.com/drive/folders/YOUR_FOLDER_LINK
