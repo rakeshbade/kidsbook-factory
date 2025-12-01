@@ -5,6 +5,7 @@ import re
 import math
 import numpy as np
 import textwrap
+from collections import Counter
 
 # Page dimensions: 6x9 inches at 300 DPI
 PAGE_WIDTH = 1800   # 6 inches * 300 DPI
@@ -17,8 +18,169 @@ BG_OPACITY_EDGE = 0.15    # 15% opacity at edges
 
 # Text settings
 FONT_SIZE = 48
-LINE_SPACING = 1.4
+LINE_SPACING = 2.0  # Line spacing multiplier
 TEXT_MARGIN = 100  # Margin from edges in pixels
+
+def get_dominant_color(image_path, num_colors=50):
+    """Extract the most vibrant color from an image and return its darkest variant."""
+    try:
+        img = Image.open(image_path).convert('RGB')
+        # Resize for faster processing
+        img = img.resize((100, 100), Image.Resampling.LANCZOS)
+        
+        # Get all pixels
+        pixels = list(img.getdata())
+        
+        # Count color occurrences (quantize to reduce unique colors)
+        quantized = []
+        for r, g, b in pixels:
+            # Quantize to 32 levels per channel
+            qr, qg, qb = (r // 8) * 8, (g // 8) * 8, (b // 8) * 8
+            quantized.append((qr, qg, qb))
+        
+        # Find most common colors - get more to find vibrant ones
+        color_counts = Counter(quantized)
+        most_common = color_counts.most_common(num_colors)
+        
+        # Calculate saturation and brightness for each color
+        # Prioritize vibrant colors over greys
+        valid_colors = []
+        for color, count in most_common:
+            r, g, b = color
+            max_c = max(r, g, b)
+            min_c = min(r, g, b)
+            
+            # Skip very dark colors
+            if max_c < 60:
+                continue
+            
+            # Calculate saturation (0-1 range)
+            if max_c == 0:
+                saturation = 0
+            else:
+                saturation = (max_c - min_c) / max_c
+            
+            # Skip greys (low saturation colors)
+            if saturation < 0.25:
+                continue
+            
+            # Calculate brightness using max channel (HSV Value)
+            brightness = max_c
+            
+            # Score: heavily prioritize saturation, then brightness
+            # This ensures vibrant colors win over greys
+            score = (saturation * 300) + brightness
+            
+            valid_colors.append((color, count, score, saturation, brightness))
+        
+        if not valid_colors:
+            # Fallback: if no saturated colors found, get the brightest from all
+            for color, count in most_common:
+                r, g, b = color
+                max_c = max(r, g, b)
+                if max_c > 50:  # Skip very dark
+                    valid_colors.append((color, count, max_c, 0, max_c))
+        
+        if not valid_colors:
+            return (0, 0, 0)
+        
+        # Sort by score (descending) to get the most vibrant bright color
+        valid_colors.sort(key=lambda x: x[2], reverse=True)
+        
+        # Get the best color
+        best_color = valid_colors[0][0] if valid_colors else (100, 100, 100)
+        
+        # Create a darker version (30% of original brightness)
+        r, g, b = best_color
+        dark_r = max(0, int(r * 0.5))
+        dark_g = max(0, int(g * 0.6))
+        dark_b = max(0, int(b * 0.7))
+        
+        return (dark_r, dark_g, dark_b)
+    
+    except Exception as e:
+        print(f"    ⚠️ Could not extract color: {e}")
+        return (0, 0, 0)  # Default to black
+
+def get_light_color(image_path, num_colors=50):
+    """Extract the most vibrant color from an image and return a light shade of it."""
+    try:
+        img = Image.open(image_path).convert('RGB')
+        # Resize for faster processing
+        img = img.resize((100, 100), Image.Resampling.LANCZOS)
+        
+        # Get all pixels
+        pixels = list(img.getdata())
+        
+        # Count color occurrences (quantize to reduce unique colors)
+        quantized = []
+        for r, g, b in pixels:
+            # Quantize to 32 levels per channel
+            qr, qg, qb = (r // 8) * 8, (g // 8) * 8, (b // 8) * 8
+            quantized.append((qr, qg, qb))
+        
+        # Find most common colors - get more to find vibrant ones
+        color_counts = Counter(quantized)
+        most_common = color_counts.most_common(num_colors)
+        
+        # Calculate saturation and brightness for each color
+        valid_colors = []
+        for color, count in most_common:
+            r, g, b = color
+            max_c = max(r, g, b)
+            min_c = min(r, g, b)
+            
+            # Skip very dark colors
+            if max_c < 60:
+                continue
+            
+            # Calculate saturation (0-1 range)
+            if max_c == 0:
+                saturation = 0
+            else:
+                saturation = (max_c - min_c) / max_c
+            
+            # Skip greys (low saturation colors)
+            if saturation < 0.25:
+                continue
+            
+            # Calculate brightness using max channel (HSV Value)
+            brightness = max_c
+            
+            # Score: heavily prioritize saturation, then brightness
+            score = (saturation * 300) + brightness
+            
+            valid_colors.append((color, count, score, saturation, brightness))
+        
+        if not valid_colors:
+            # Fallback: if no saturated colors found, get the brightest from all
+            for color, count in most_common:
+                r, g, b = color
+                max_c = max(r, g, b)
+                if max_c > 50:
+                    valid_colors.append((color, count, max_c, 0, max_c))
+        
+        if not valid_colors:
+            return (255, 250, 245)  # Default to warm white
+        
+        # Sort by score (descending) to get the most vibrant bright color
+        valid_colors.sort(key=lambda x: x[2], reverse=True)
+        
+        # Get the best color
+        best_color = valid_colors[0][0] if valid_colors else (255, 250, 245)
+        
+        # Create a light version (high brightness, low saturation tint)
+        r, g, b = best_color
+        # Blend with white to create a light pastel shade
+        light_r = min(255, int(255 - (255 - r) * 0.15))
+        light_g = min(255, int(255 - (255 - g) * 0.12))
+        light_b = min(255, int(255 - (255 - b) * 0.10))
+        
+        return (light_r, light_g, light_b)
+    
+    except Exception as e:
+        print(f"    ⚠️ Could not extract light color: {e}")
+        return (255, 250, 245)  # Default to warm white
 
 def create_radial_gradient_mask(width, height, center_opacity, edge_opacity):
     """Create a radial gradient mask from center to edges."""
@@ -69,13 +231,20 @@ def parse_story():
     
     return title, story_pages
 
-def create_page_with_background(page_number, bg_image_path, output_path):
+def create_page_with_background(page_number, bg_image_path, output_path, main_image_path=None):
     """Create a page with a radial gradient transparent background image.
     Center has 3% opacity, edges have 15% opacity.
+    Background color is a light shade of the dominant color from main image.
     """
     
-    # Create white base page
-    page = Image.new('RGB', (PAGE_WIDTH, PAGE_HEIGHT), 'white')
+    # Get light background color from main image
+    if main_image_path and os.path.exists(main_image_path):
+        bg_color = get_light_color(main_image_path)
+    else:
+        bg_color = (255, 250, 245)  # Warm white fallback
+    
+    # Create base page with light color
+    page = Image.new('RGB', (PAGE_WIDTH, PAGE_HEIGHT), bg_color)
     
     # Load and process background image if it exists
     if os.path.exists(bg_image_path):
@@ -93,8 +262,8 @@ def create_page_with_background(page_number, bg_image_path, output_path):
         # Apply gradient mask as alpha channel
         bg_img.putalpha(gradient_mask)
         
-        # Composite background onto white page
-        page = Image.new('RGBA', (PAGE_WIDTH, PAGE_HEIGHT), 'white')
+        # Composite background onto colored page
+        page = Image.new('RGBA', (PAGE_WIDTH, PAGE_HEIGHT), bg_color)
         page = Image.alpha_composite(page, bg_img)
         page = page.convert('RGB')
     
@@ -171,10 +340,15 @@ def create_story_page_with_image_and_text(page_number, bg_image_path, main_image
     """Create a story page with:
     - Top 50%: Main image (full opacity)
     - Bottom 50%: Story text centered on gradient background
+    - Text color: Darkest variant of the dominant color from the main image
+    - Background color: Light shade of the dominant color
     """
     
-    # Create the page with gradient background
-    page = create_page_with_background(page_number, bg_image_path, None)
+    # Create the page with gradient background and colored base
+    page = create_page_with_background(page_number, bg_image_path, None, main_image_path)
+    
+    # Get text color from main image's dominant color
+    text_color = get_dominant_color(main_image_path)
     
     # Load and place main image in top half
     if os.path.exists(main_image_path):
@@ -200,10 +374,10 @@ def create_story_page_with_image_and_text(page_number, bg_image_path, main_image
         # Paste main image onto top half of page
         page.paste(main_img, (0, 0))
     
-    # Draw text in bottom half, centered
+    # Draw text in bottom half, centered with dominant color
     draw = ImageDraw.Draw(page)
     font = get_font(FONT_SIZE)
-    draw_centered_text(draw, text, font, HALF_HEIGHT, HALF_HEIGHT)
+    draw_centered_text(draw, text, font, HALF_HEIGHT, HALF_HEIGHT, text_color=text_color)
     
     return page
 
