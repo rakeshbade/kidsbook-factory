@@ -78,7 +78,7 @@ jobs:
           issue-number: ${{ github.event.issue.number }}
           body: |
             📚 Book ready! Download print-ready PDF here:
-            https://drive.google.com/drive/folders/YOUR_FOLDER_LINK
+            https://drive.google.com/drive/folders/kids-story-books
             
             **Powered by:**
             - 📝 Story: Gemini 2.5 Flash (Google AI)
