@@ -5,6 +5,7 @@ import re
 import math
 import numpy as np
 import textwrap
+import random
 from collections import Counter
 
 # Page dimensions: 6x9 inches at 300 DPI
@@ -182,6 +183,213 @@ def get_light_color(image_path, num_colors=50):
         print(f"    ⚠️ Could not extract light color: {e}")
         return (255, 250, 245)  # Default to warm white
 
+def create_decorative_mask(width, height, edge_type="wave"):
+    """Create a mask with a decorative bottom edge for the image.
+    
+    edge_type options:
+    - 'wave': Smooth sine wave pattern
+    - 'scallop': Rounded scallop/cloud pattern  
+    - 'zigzag': Triangular zigzag pattern
+    """
+    # Create a white mask (fully opaque)
+    mask = Image.new('L', (width, height), 255)
+    draw = ImageDraw.Draw(mask)
+    
+    # Parameters for the decorative edge
+    wave_height = 25  # How tall the waves are (shorter)
+    wave_count = random.randint(2, 10)    # Number of waves across the width
+    
+    if edge_type == "wave":
+        # Create smooth sine wave bottom edge
+        points = [(0, 0), (0, height)]  # Start from top-left, go down
+        
+        for x in range(width + 1):
+            # Sine wave formula
+            progress = x / width * wave_count * 2 * math.pi
+            y_offset = math.sin(progress) * wave_height
+            y = height - wave_height + y_offset
+            points.append((x, y))
+        
+        points.append((width, 0))  # Complete the polygon
+        
+        # Draw the mask - white inside (visible), black outside (hidden)
+        draw.polygon(points, fill=255)
+        
+        # Clear the area below the wave
+        for x in range(width):
+            progress = x / width * wave_count * 2 * math.pi
+            y_offset = math.sin(progress) * wave_height
+            wave_y = int(height - wave_height + y_offset)
+            draw.line([(x, wave_y), (x, height)], fill=0)
+            
+    elif edge_type == "scallop":
+        # Create rounded scallop/cloud pattern
+        scallop_width = width // wave_count
+        scallop_radius = scallop_width // 2
+        
+        # Fill the main area white
+        draw.rectangle([0, 0, width, height - scallop_radius], fill=255)
+        
+        # Draw scallops (semicircles) at the bottom
+        for i in range(wave_count + 1):
+            center_x = i * scallop_width
+            center_y = height - scallop_radius - 10
+            
+            # Draw filled semicircle
+            bbox = [
+                center_x - scallop_radius,
+                center_y,
+                center_x + scallop_radius,
+                center_y + scallop_radius * 2
+            ]
+            draw.ellipse(bbox, fill=255)
+        
+        # Clear below the scallops
+        for x in range(width):
+            # Find which scallop this x belongs to
+            scallop_index = x // scallop_width
+            center_x = scallop_index * scallop_width + scallop_radius
+            center_y = height - scallop_radius - 10
+            
+            # Calculate distance from scallop center
+            dx = abs(x - center_x)
+            if dx < scallop_radius:
+                # Inside scallop arc
+                arc_y = center_y + int(math.sqrt(scallop_radius**2 - dx**2))
+                draw.line([(x, arc_y), (x, height)], fill=0)
+            else:
+                # Between scallops
+                draw.line([(x, center_y), (x, height)], fill=0)
+                
+    elif edge_type == "zigzag":
+        # Create triangular zigzag pattern
+        tooth_width = width // (wave_count * 2)
+        
+        points = [(0, 0), (0, height - wave_height)]
+        
+        for i in range(wave_count * 2 + 1):
+            x = i * tooth_width
+            if i % 2 == 0:
+                y = height - wave_height
+            else:
+                y = height
+            points.append((x, y))
+        
+        points.append((width, height - wave_height))
+        points.append((width, 0))
+        
+        draw.polygon(points, fill=255)
+        
+        # Clear below zigzag
+        for i in range(wave_count * 2):
+            x1 = i * tooth_width
+            x2 = (i + 1) * tooth_width
+            if i % 2 == 0:
+                # Going down
+                y1 = height - wave_height
+                y2 = height
+            else:
+                # Going up
+                y1 = height
+                y2 = height - wave_height
+            
+            for x in range(x1, min(x2, width)):
+                progress = (x - x1) / tooth_width
+                y = int(y1 + (y2 - y1) * progress)
+                draw.line([(x, y), (x, height)], fill=0)
+    
+    return mask
+
+def create_decorative_mask_top(width, height, edge_type="wave"):
+    """Create a mask with a decorative TOP edge for the image (for even pages).
+    
+    edge_type options:
+    - 'wave': Smooth sine wave pattern at the top
+    - 'scallop': Rounded scallop/cloud pattern at the top
+    - 'zigzag': Triangular zigzag pattern at the top
+    """
+    # Create a white mask (fully opaque)
+    mask = Image.new('L', (width, height), 255)
+    draw = ImageDraw.Draw(mask)
+    
+    # Parameters for the decorative edge
+    wave_height = 25  # How tall the waves are
+    wave_count = 8    # Number of waves across the width
+    
+    if edge_type == "wave":
+        # Clear the area above the wave
+        for x in range(width):
+            progress = x / width * wave_count * 2 * math.pi
+            y_offset = math.sin(progress) * wave_height
+            wave_y = int(wave_height - y_offset)
+            draw.line([(x, 0), (x, wave_y)], fill=0)
+            
+    elif edge_type == "scallop":
+        # Create rounded scallop/cloud pattern at top
+        scallop_width = width // wave_count
+        scallop_radius = scallop_width // 2
+        
+        # Clear above the scallops
+        for x in range(width):
+            scallop_index = x // scallop_width
+            center_x = scallop_index * scallop_width + scallop_radius
+            center_y = scallop_radius + 10
+            
+            dx = abs(x - center_x)
+            if dx < scallop_radius:
+                arc_y = center_y - int(math.sqrt(scallop_radius**2 - dx**2))
+                draw.line([(x, 0), (x, arc_y)], fill=0)
+            else:
+                draw.line([(x, 0), (x, center_y)], fill=0)
+                
+    elif edge_type == "zigzag":
+        # Create triangular zigzag pattern at top
+        tooth_width = width // (wave_count * 2)
+        
+        for i in range(wave_count * 2):
+            x1 = i * tooth_width
+            x2 = (i + 1) * tooth_width
+            if i % 2 == 0:
+                y1 = wave_height
+                y2 = 0
+            else:
+                y1 = 0
+                y2 = wave_height
+            
+            for x in range(x1, min(x2, width)):
+                progress = (x - x1) / tooth_width
+                y = int(y1 + (y2 - y1) * progress)
+                draw.line([(x, 0), (x, y)], fill=0)
+    
+    return mask
+
+def create_wave_shadow(width, height, wave_height=25, wave_count=8, shadow_offset=8, shadow_blur=15):
+    """Create a shadow image that follows the wave pattern."""
+    # Create a larger image for blur effect
+    shadow = Image.new('RGBA', (width, height + 50), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(shadow)
+    
+    # Draw shadow shape (slightly offset down from the wave)
+    points = []
+    for x in range(width + 1):
+        progress = x / width * wave_count * 2 * math.pi
+        y_offset = math.sin(progress) * wave_height
+        y = height - wave_height + y_offset + shadow_offset
+        points.append((x, y))
+    
+    # Complete the polygon to fill below
+    points.append((width, height + 50))
+    points.append((0, height + 50))
+    
+    # Draw shadow with gradient opacity
+    draw.polygon(points, fill=(0, 0, 0, 60))
+    
+    # Apply blur for soft shadow effect
+    from PIL import ImageFilter
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+    
+    return shadow
+
 def create_radial_gradient_mask(width, height, center_opacity, edge_opacity):
     """Create a radial gradient mask from center to edges."""
     # Create coordinate grids
@@ -336,13 +544,53 @@ def draw_centered_text(draw, text, font, area_top, area_height, text_color=(0, 0
         y = start_y + (i * line_height)
         draw.text((x, y), line, font=font, fill=text_color)
 
+def draw_page_number(draw, page_number, position, text_color=(0, 0, 0)):
+    """Draw page number centered horizontally.
+    
+    position: 'top' or 'bottom' of the text area
+    - 'bottom': For odd pages (text at bottom, number below text)
+    - 'top': For even pages (text at top, number above text)
+    """
+    # Use 2x the story font size for page number
+    page_num_font = get_font(int(FONT_SIZE * 2))
+    page_num_str = str(page_number)
+    
+    # Get text dimensions
+    bbox = draw.textbbox((0, 0), page_num_str, font=page_num_font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    
+    # Center horizontally
+    x = (PAGE_WIDTH - text_width) // 2
+    
+    # Position vertically based on layout
+    # Use same visual margin from the edge for both top and bottom
+    margin_from_edge = 80  # Distance from edge of page
+    
+    if position == 'bottom':
+        # For odd pages: page number at bottom of the page
+        y = PAGE_HEIGHT - margin_from_edge - text_height
+    else:  # 'top'
+        # For even pages: page number at top of the page
+        y = margin_from_edge
+    
+    draw.text((x, y), page_num_str, font=page_num_font, fill=text_color)
+
 def create_story_page_with_image_and_text(page_number, bg_image_path, main_image_path, text, output_path):
-    """Create a story page with:
-    - Top 50%: Main image (full opacity)
-    - Bottom 50%: Story text centered on gradient background
+    """Create a story page with alternating layouts:
+    - Odd pages: Image on top (wave at bottom), text on bottom
+    - Even pages: Text on top, image on bottom (wave at top)
     - Text color: Darkest variant of the dominant color from the main image
     - Background color: Light shade of the dominant color
+    - Edge type: Randomized (wave, scallop, or zigzag)
     """
+    
+    # Determine layout based on page number
+    is_odd_page = (page_number % 2 == 1)
+    
+    # Randomize edge type for variety (seeded by page number for consistency)
+    random.seed(page_number)
+    edge_type = random.choice(["wave", "scallop", "zigzag"])
     
     # Create the page with gradient background and colored base
     page = create_page_with_background(page_number, bg_image_path, None, main_image_path)
@@ -350,11 +598,11 @@ def create_story_page_with_image_and_text(page_number, bg_image_path, main_image
     # Get text color from main image's dominant color
     text_color = get_dominant_color(main_image_path)
     
-    # Load and place main image in top half
+    # Load and process main image
     if os.path.exists(main_image_path):
-        main_img = Image.open(main_image_path).convert('RGB')
+        main_img = Image.open(main_image_path).convert('RGBA')
         
-        # Resize main image to fit top half (maintain aspect ratio, cover)
+        # Resize main image to fit half page (maintain aspect ratio, cover)
         img_width, img_height = main_img.size
         target_width = PAGE_WIDTH
         target_height = HALF_HEIGHT
@@ -371,13 +619,49 @@ def create_story_page_with_image_and_text(page_number, bg_image_path, main_image
         top = (new_height - target_height) // 2
         main_img = main_img.crop((left, top, left + target_width, top + target_height))
         
-        # Paste main image onto top half of page
-        page.paste(main_img, (0, 0))
-    
-    # Draw text in bottom half, centered with dominant color
-    draw = ImageDraw.Draw(page)
-    font = get_font(FONT_SIZE)
-    draw_centered_text(draw, text, font, HALF_HEIGHT, HALF_HEIGHT, text_color=text_color)
+        # Convert page to RGBA for compositing
+        page = page.convert('RGBA')
+        
+        if is_odd_page:
+            # ODD PAGE: Image on TOP with decorative edge at bottom
+            decorative_mask = create_decorative_mask(target_width, target_height, edge_type=edge_type)
+            main_img.putalpha(decorative_mask)
+            
+            # Place image at top
+            page.alpha_composite(main_img, (0, 0))
+            
+            # Convert back to RGB and draw text in bottom half
+            page = page.convert('RGB')
+            draw = ImageDraw.Draw(page)
+            font = get_font(FONT_SIZE)
+            draw_centered_text(draw, text, font, HALF_HEIGHT, HALF_HEIGHT, text_color=text_color)
+            # Draw page number at bottom
+            draw_page_number(draw, page_number, 'bottom', text_color=text_color)
+        else:
+            # EVEN PAGE: Text on TOP, image on BOTTOM with decorative edge at top
+            decorative_mask = create_decorative_mask_top(target_width, target_height, edge_type=edge_type)
+            main_img.putalpha(decorative_mask)
+            
+            # Place image at bottom
+            page.alpha_composite(main_img, (0, HALF_HEIGHT))
+            
+            # Convert back to RGB and draw text in top half
+            page = page.convert('RGB')
+            draw = ImageDraw.Draw(page)
+            font = get_font(FONT_SIZE)
+            draw_centered_text(draw, text, font, 0, HALF_HEIGHT, text_color=text_color)
+            # Draw page number at top
+            draw_page_number(draw, page_number, 'top', text_color=text_color)
+    else:
+        # No image - just draw text based on layout
+        draw = ImageDraw.Draw(page)
+        font = get_font(FONT_SIZE)
+        if is_odd_page:
+            draw_centered_text(draw, text, font, HALF_HEIGHT, HALF_HEIGHT, text_color=text_color)
+            draw_page_number(draw, page_number, 'bottom', text_color=text_color)
+        else:
+            draw_centered_text(draw, text, font, 0, HALF_HEIGHT, text_color=text_color)
+            draw_page_number(draw, page_number, 'top', text_color=text_color)
     
     return page
 
