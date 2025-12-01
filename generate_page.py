@@ -666,9 +666,20 @@ def create_story_page_with_image_and_text(page_number, bg_image_path, main_image
     return page
 
 def generate_cover_page(title, output_dir):
-    """Generate the cover page with title."""
+    """Generate the cover page with title.
+    Uses the original cover image without any transparency or processing.
+    """
     bg_path = "images/page_00_cover_bg.png"
-    page = create_page_with_background(0, bg_path, None)
+    
+    # Load the original cover image directly without transparency
+    if os.path.exists(bg_path):
+        page = Image.open(bg_path).convert('RGB')
+        # Resize to match page dimensions if needed
+        if page.size != (PAGE_WIDTH, PAGE_HEIGHT):
+            page = page.resize((PAGE_WIDTH, PAGE_HEIGHT), Image.Resampling.LANCZOS)
+    else:
+        # Fallback to blank page if image doesn't exist
+        page = Image.new('RGB', (PAGE_WIDTH, PAGE_HEIGHT), (255, 255, 255))
     
     # Save cover page
     output_path = os.path.join(output_dir, "page_00_cover.png")

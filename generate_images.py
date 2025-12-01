@@ -102,9 +102,11 @@ print(f"\nGenerating {total_images} images using Pollinations.ai (FREE)")
 print(f"Book Title: {book_title}")
 print("=" * 60)
 
-# Generate cover page (page 00)
+# Generate cover page (page 00) - use first prompt as base for cover illustration
 print(f"Generating cover page (1/{total_images}): {book_title[:50]}...")
-cover_prompt = f"A beautiful children's book cover illustration featuring the title '{book_title}', whimsical fantasy scene with a cute dragon, magical atmosphere, enchanting, storybook style, with decorative border"
+# Use the first story prompt as inspiration but modify for cover layout
+first_prompt = prompts[0] if prompts else "a cute dragon in a magical fantasy setting"
+cover_prompt = f"{first_prompt}, children's book cover illustration style, leave the top third of the image mostly empty with soft gradient sky or clouds for title text placement, no text or letters in the image, decorative border"
 generate_image(cover_prompt, "images/page_00_cover.png")
 
 # Generate story pages
