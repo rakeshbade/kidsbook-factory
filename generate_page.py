@@ -414,30 +414,34 @@ def create_radial_gradient_mask(width, height, center_opacity, edge_opacity):
     return Image.fromarray(alpha, mode='L')
 
 def parse_story():
-    """Parse story.txt and extract title and story segments with their page numbers."""
-    story_pages = []
+    """Parse story.json and extract title and story pages."""
+    import json
     
-    with open("story.txt", "r") as f:
-        content = f.read()
+    if not os.path.exists("story.json"):
+        raise FileNotFoundError("story.json not found. Run generate_story.py first.")
     
-    # Extract title
-    title_match = re.match(r"Title:\s*(.+)", content)
-    title = title_match.group(1).strip() if title_match else "My Storybook"
+    with open("story.json", "r") as f:
+        story_data = json.load(f)
     
-    # Split by IMAGE: markers to get story segments
-    parts = re.split(r'\nIMAGE:[^\n]+\n?', content)
+    if not story_data:
+        raise ValueError("story.json is empty")
     
-    # First part contains title, skip it for page content
-    # Process remaining parts as story pages
-    for i, part in enumerate(parts):
-        text = part.strip()
-        # Skip title line
-        if text.startswith("Title:"):
-            text = re.sub(r"Title:[^\n]+\n?", "", text).strip()
-        if text:
-            story_pages.append(text)
+    # Extract title from prompt.txt
+    title = "My Storybook"
+    if os.path.exists("prompt.txt"):
+        with open("prompt.txt", "r") as f:
+            content = f.read()
+            title_match = re.match(r"Title:\s*(.+)", content)
+            if title_match:
+                title = title_match.group(1).strip()
     
-    return title, story_pages
+    # If first page story is just the title, use it
+    if story_data and len(story_data[0].get("story", "").split()) <= 10:
+        potential_title = story_data[0].get("story", "").strip()
+        if potential_title and potential_title.isupper() or "'" in potential_title:
+            title = potential_title
+    
+    return title, story_data
 
 def create_page_with_background(page_number, bg_image_path, output_path, main_image_path=None):
     """Create a page with a radial gradient transparent background image.
@@ -687,8 +691,14 @@ def generate_cover_page(title, output_dir):
     print(f"  ✅ Created: {output_path}")
     return page
 
-def generate_story_page(page_number, text, output_dir):
+def generate_story_page(page_number, page_data, output_dir):
     """Generate a story page with image in top half and text in bottom half."""
+    # Handle both dict (new format) and string (old format)
+    if isinstance(page_data, dict):
+        text = page_data.get("story", "")
+    else:
+        text = page_data
+    
     bg_path = f"images/page_{page_number:02d}_bg.png"
     main_image_path = f"images/page_{page_number:02d}.png"
     
@@ -730,10 +740,10 @@ def main():
     generate_cover_page(title, output_dir)
     
     # Generate story pages
-    for i, text in enumerate(story_pages):
+    for i, page_data in enumerate(story_pages):
         page_num = i + 1
         print(f"Generating story page {page_num} ({page_num + 1}/{total_pages})...")
-        generate_story_page(page_num, text, output_dir)
+        generate_story_page(page_num, page_data, output_dir)
     
     # Generate end page
     end_page_num = len(story_pages) + 1

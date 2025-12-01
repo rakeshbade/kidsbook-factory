@@ -30,14 +30,19 @@ jobs:
           with open('prompt.txt', 'w') as f:
             f.write(f'Title: {title}\n\nStory prompt: {body}\nGenerate exactly 20 pages with one illustration prompt per page.')
           "
+      # - name: Generate prompt
+      #   env:
+      #     GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      #   run: |
+      #     python generate_prompt.py
 
-      - name: Generate story with Gemini (free)
+      - name: Generate story
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # get free at https://aistudio.google.com
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python generate_story.py
 
-      - name: Generate 20 images with Hugging Face FLUX (FREE)
+      - name: Generate images
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -57,7 +62,7 @@ jobs:
               img.save(f'clean_images/{f}')
           "
 
-      - name: Create print-ready PDF (8.5×8.5", 300 DPI, bleed)
+      - name: Create print-ready PDF
         run: |
           python create_pdf.py
 
@@ -79,7 +84,3 @@ jobs:
           body: |
             📚 Book ready! Download print-ready PDF here:
             https://drive.google.com/drive/folders/kids-story-books
-            
-            **Powered by:**
-            - 📝 Story: Gemini 2.5 Flash (Google AI)
-            - 🎨 Images: FLUX.1-schnell (Hugging Face - FREE)

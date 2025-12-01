@@ -1,6 +1,6 @@
 # generate_images.py
 import json, os, time, requests
-from PIL import Image, ImageEnhance, ImageFilter
+from resize_images import resize_image
 
 def get_book_title():
     """Extract the book title from story.txt."""
@@ -12,17 +12,6 @@ def get_book_title():
     except Exception as e:
         print(f"⚠️  Could not read title: {e}")
     return "My Storybook"
-
-def sharpen_image(filepath, factor=1.25):
-    """Sharpen an image by the given factor (1.25 = 25% sharper)."""
-    try:
-        img = Image.open(filepath)
-        enhancer = ImageEnhance.Sharpness(img)
-        sharpened = enhancer.enhance(factor)
-        sharpened.save(filepath)
-        print(f"    🔍 Sharpened: {os.path.basename(filepath)}")
-    except Exception as e:
-        print(f"    ⚠️  Could not sharpen {filepath}: {e}")
 
 def generate_image(prompt, filename, max_retries=3):
     """Generate two images using Pollinations.ai (FREE, no API key needed).
@@ -44,14 +33,14 @@ def generate_image(prompt, filename, max_retries=3):
     portrait_file = f"{base_filename}_bg.png"
     for attempt in range(1, max_retries + 1):
         try:
-            url_portrait = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=1800&height=2700&nologo=true"
-            print(f"    Generating portrait (1800x2700)... (attempt {attempt}/{max_retries})")
+            url_portrait = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=600&height=900&nologo=true"
+            print(f"    Generating portrait (600x900)... (attempt {attempt}/{max_retries})")
             response = requests.get(url_portrait, headers=headers, timeout=120)
             response.raise_for_status()
             with open(portrait_file, 'wb') as f:
                 f.write(response.content)
             print(f"  ✅ Saved: {portrait_file}")
-            sharpen_image(portrait_file, 1.25)  # Sharpen by 25%
+            resize_image(portrait_file)  # Resize to print quality
             break
         except Exception as e:
             print(f"  ⚠️ Attempt {attempt} failed (portrait): {e}")
@@ -64,18 +53,18 @@ def generate_image(prompt, filename, max_retries=3):
     
     time.sleep(3)  # Brief pause between requests
     
-    # Generate landscape image (2700x1800) - 9x6 inches
+    # Generate landscape image (900x600) - 3x2 inches
     landscape_file = f"{base_filename}.png"
     for attempt in range(1, max_retries + 1):
         try:
-            url_landscape = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=2700&height=1800&nologo=true"
-            print(f"    Generating landscape (2700x1800)... (attempt {attempt}/{max_retries})")
+            url_landscape = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=900&height=600&nologo=true"
+            print(f"    Generating landscape... (attempt {attempt}/{max_retries})")
             response = requests.get(url_landscape, headers=headers, timeout=120)
             response.raise_for_status()
             with open(landscape_file, 'wb') as f:
                 f.write(response.content)
             print(f"  ✅ Saved: {landscape_file}")
-            sharpen_image(landscape_file, 1.25)  # Sharpen by 25%
+            resize_image(landscape_file)  # Resize to print quality
             break
         except Exception as e:
             print(f"  ⚠️ Attempt {attempt} failed (landscape): {e}")
@@ -116,7 +105,7 @@ for i, prompt in enumerate(prompts):
 
 # Generate end page (thank you)
 print(f"Generating end page ({total_images}/{total_images}): Thank You...")
-end_prompt = f"A heartwarming children's book ending page with 'Thank You for Reading!' text, cute dragon waving goodbye, magical sparkles, warm golden sunset colors, storybook style, decorative border, happy ending atmosphere"
+end_prompt = f"A heartwarming children's book ending page with 'Thank You for Reading!' text, bright and cheerful colors, cartoon style".format(book_title)
 generate_image(end_prompt, f"images/page_{len(prompts)+1:02d}_end.png")
 
 print("\n✅ Image generation complete!")

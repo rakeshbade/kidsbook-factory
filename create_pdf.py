@@ -1,35 +1,58 @@
 # create_pdf.py
-from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from PIL import Image
-import os, textwrap, json, re
+import os
+import json
 
-# 8.5 × 8.5 inch square with 0.25" bleed → canvas size 8.75×8.75
-size = (8.75*72, 8.75*72)
+# 6 × 9 inch page size (standard children's book)
+PAGE_WIDTH = 6 * 72   # 432 points
+PAGE_HEIGHT = 9 * 72  # 648 points
+size = (PAGE_WIDTH, PAGE_HEIGHT)
 
-c = canvas.Canvas(f"output/{os.getenv('GITHUB_RUN_NUMBER', 'test')}_book.pdf", pagesize=size)
-story = open("story.txt").read()
+# Create output directory
+os.makedirs("output", exist_ok=True)
 
-pages = re.split(r"IMAGE:", story)[1:]  # first part is title
+# Load story data
+if not os.path.exists("story.json"):
+    raise FileNotFoundError("story.json not found. Run generate_story.py first.")
 
-for i, page_text in enumerate(pages):
-    c.setFillColorRGB(1,1,1)
-    c.rect(0,0,8.75*72,8.75*72, fill=1)
+with open("story.json", "r") as f:
+    story_data = json.load(f)
 
-    # Paste image (already cropped)
-    img_path = f"clean_images/page_{i+1:02d}.png"
+# Create PDF
+output_filename = f"output/{os.getenv('GITHUB_RUN_NUMBER', 'test')}_book.pdf"
+c = canvas.Canvas(output_filename, pagesize=size)
+
+# Get list of page images from pages/ directory
+pages_dir = "pages"
+if not os.path.exists(pages_dir):
+    raise FileNotFoundError("pages/ directory not found. Run generate_page.py first.")
+
+page_files = sorted([f for f in os.listdir(pages_dir) if f.endswith('.png')])
+
+if not page_files:
+    raise FileNotFoundError("No page images found in pages/ directory.")
+
+print(f"\nCreating PDF with {len(page_files)} pages...")
+print(f"Page size: 6×9 inches ({PAGE_WIDTH}×{PAGE_HEIGHT} points)")
+print("=" * 60)
+
+for page_file in page_files:
+    img_path = os.path.join(pages_dir, page_file)
+    
+    # Draw white background
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, fill=1)
+    
+    # Draw the page image (full page, no margins since images are already formatted)
     if os.path.exists(img_path):
-        c.drawImage(img_path, 0.25*72, 0.25*72, width=8*72, height=8*72)
-
-    # Add text at bottom
-    lines = textwrap.wrap(page_text.strip(), width=60)
-    y = 0.7*72
-    for line in lines[-4:]:  # only last 4 lines
-        c.setFont("Helvetica", 18)
-        c.setFillColorRGB(0,0,0)
-        c.drawCentredString(4.375*72, y, line)
-        y -= 30
-
+        c.drawImage(img_path, 0, 0, width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        print(f"  ✅ Added: {page_file}")
+    else:
+        print(f"  ⚠️ Missing: {page_file}")
+    
     c.showPage()
 
 c.save()
+print("=" * 60)
+print(f"✅ PDF created: {output_filename}")

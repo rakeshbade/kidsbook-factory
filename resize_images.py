@@ -1,53 +1,65 @@
 # resize_images.py
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 import os
 
-# Target size for 6x9 inch print at 300 DPI
-TARGET_WIDTH = 1800   # 6 inches * 300 DPI
-TARGET_HEIGHT = 2700  # 9 inches * 300 DPI
+# Print quality DPI
 DPI = 300
+# Scale factor: multiply original dimensions by this to get print-ready size
+# e.g., 600x900 image becomes 1800x2700 (3x scale)
+SCALE_FACTOR = 3
 
-def resize_image(input_path, output_path):
-    """Resize an image to 6x9 inches at 300 DPI for printing."""
+
+def resize_image(input_path, output_path=None):
+    """Resize an image to print quality at 300 DPI with quality preservation.
+    Scales the image proportionally based on its original dimensions.
+    """
+    if output_path is None:
+        output_path = input_path  # Overwrite original
+    
     try:
         with Image.open(input_path) as img:
             # Convert to RGB if necessary (for PNG with transparency)
             if img.mode in ('RGBA', 'P'):
+                # Create white background for transparent images
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'RGBA':
+                    background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+                else:
+                    background.paste(img)
+                img = background
+            elif img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # Calculate aspect ratios
-            original_ratio = img.width / img.height
-            target_ratio = TARGET_WIDTH / TARGET_HEIGHT
+            # Calculate target dimensions based on original image size
+            target_width = img.width * SCALE_FACTOR
+            target_height = img.height * SCALE_FACTOR
             
-            # Resize to cover the target area, then crop to exact size
-            if original_ratio > target_ratio:
-                # Image is wider, fit by height
-                new_height = TARGET_HEIGHT
-                new_width = int(new_height * original_ratio)
-            else:
-                # Image is taller, fit by width
-                new_width = TARGET_WIDTH
-                new_height = int(new_width / original_ratio)
+            # Single-step resize with LANCZOS (highest quality)
+            img_resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
             
-            # Resize with high-quality resampling
-            img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            # Apply subtle sharpening to restore any lost detail from resizing
+            img_sharpened = img_resized.filter(
+                ImageFilter.UnsharpMask(radius=1.5, percent=80, threshold=2)
+            )
             
-            # Crop to exact target size (center crop)
-            left = (new_width - TARGET_WIDTH) // 2
-            top = (new_height - TARGET_HEIGHT) // 2
-            right = left + TARGET_WIDTH
-            bottom = top + TARGET_HEIGHT
+            # Slightly enhance contrast to make colors pop in print
+            enhancer = ImageEnhance.Contrast(img_sharpened)
+            img_enhanced = enhancer.enhance(1.05)  # 5% contrast boost
             
-            img_cropped = img_resized.crop((left, top, right, bottom))
-            
-            # Save with 300 DPI metadata
-            img_cropped.save(output_path, 'PNG', dpi=(DPI, DPI))
-            print(f"  ✅ Resized: {os.path.basename(output_path)}")
+            # Save as high-quality PNG with 300 DPI metadata
+            img_enhanced.save(
+                output_path, 
+                'PNG', 
+                dpi=(DPI, DPI),
+                optimize=True
+            )
+            print(f"    🔍 Resized ({target_width}x{target_height}): {os.path.basename(output_path)}")
             return True
             
     except Exception as e:
         print(f"  ❌ Error processing {input_path}: {e}")
         return False
+
 
 def main():
     input_dir = "images"
@@ -63,8 +75,7 @@ def main():
         print("❌ No images found in 'images' folder")
         return
     
-    print(f"\nResizing {len(images)} images to 6x9 inches at {DPI} DPI")
-    print(f"Target resolution: {TARGET_WIDTH}x{TARGET_HEIGHT} pixels")
+    print(f"\nResizing {len(images)} images at 300 DPI")
     print("=" * 60)
     
     success_count = 0
