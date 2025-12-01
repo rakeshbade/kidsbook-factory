@@ -1,5 +1,6 @@
 # generate_images.py
 import json, os, time, requests
+from PIL import Image, ImageEnhance, ImageFilter
 
 def get_book_title():
     """Extract the book title from story.txt."""
@@ -12,10 +13,23 @@ def get_book_title():
         print(f"⚠️  Could not read title: {e}")
     return "My Storybook"
 
-def generate_image(prompt, filename):
+def sharpen_image(filepath, factor=1.25):
+    """Sharpen an image by the given factor (1.25 = 25% sharper)."""
+    try:
+        img = Image.open(filepath)
+        enhancer = ImageEnhance.Sharpness(img)
+        sharpened = enhancer.enhance(factor)
+        sharpened.save(filepath)
+        print(f"    🔍 Sharpened: {os.path.basename(filepath)}")
+    except Exception as e:
+        print(f"    ⚠️  Could not sharpen {filepath}: {e}")
+
+def generate_image(prompt, filename, max_retries=3):
     """Generate two images using Pollinations.ai (FREE, no API key needed).
     1. Portrait (1800x2700) - saved as {filename}.png
     2. Landscape (2700x1800) - saved as {filename}_bg.png
+    Both images are sharpened by 25% after saving.
+    Retries up to max_retries times on failure.
     """
     full_prompt = prompt + ", cartoon style, for children's book, colorful, vibrant, high quality"
     
@@ -27,30 +41,50 @@ def generate_image(prompt, filename):
     base_filename = filename.replace('.png', '')
     
     # Generate portrait image (1800x2700) - 6x9 inches
-    try:
-        url_portrait = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=1800&height=2700&nologo=true"
-        print(f"    Generating portrait (1800x2700)...")
-        response = requests.get(url_portrait, headers=headers, timeout=120)
-        response.raise_for_status()
-        with open(f"{base_filename}_bg.png", 'wb') as f:
-            f.write(response.content)
-        print(f"  ✅ Saved: {base_filename}_bg.png")
-    except Exception as e:
-        print(f"  ❌ Error (portrait): {e}")
+    portrait_file = f"{base_filename}_bg.png"
+    for attempt in range(1, max_retries + 1):
+        try:
+            url_portrait = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=1800&height=2700&nologo=true"
+            print(f"    Generating portrait (1800x2700)... (attempt {attempt}/{max_retries})")
+            response = requests.get(url_portrait, headers=headers, timeout=120)
+            response.raise_for_status()
+            with open(portrait_file, 'wb') as f:
+                f.write(response.content)
+            print(f"  ✅ Saved: {portrait_file}")
+            sharpen_image(portrait_file, 1.25)  # Sharpen by 25%
+            break
+        except Exception as e:
+            print(f"  ⚠️ Attempt {attempt} failed (portrait): {e}")
+            if attempt < max_retries:
+                wait_time = attempt * 5
+                print(f"    Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"  ❌ All {max_retries} attempts failed for portrait")
     
     time.sleep(3)  # Brief pause between requests
     
     # Generate landscape image (2700x1800) - 9x6 inches
-    try:
-        url_landscape = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=2700&height=1800&nologo=true"
-        print(f"    Generating landscape (2700x1800)...")
-        response = requests.get(url_landscape, headers=headers, timeout=120)
-        response.raise_for_status()
-        with open(f"{base_filename}.png", 'wb') as f:
-            f.write(response.content)
-        print(f"  ✅ Saved: {base_filename}.png")
-    except Exception as e:
-        print(f"  ❌ Error (landscape): {e}")
+    landscape_file = f"{base_filename}.png"
+    for attempt in range(1, max_retries + 1):
+        try:
+            url_landscape = f"https://image.pollinations.ai/prompt/{requests.utils.quote(full_prompt)}?width=2700&height=1800&nologo=true"
+            print(f"    Generating landscape (2700x1800)... (attempt {attempt}/{max_retries})")
+            response = requests.get(url_landscape, headers=headers, timeout=120)
+            response.raise_for_status()
+            with open(landscape_file, 'wb') as f:
+                f.write(response.content)
+            print(f"  ✅ Saved: {landscape_file}")
+            sharpen_image(landscape_file, 1.25)  # Sharpen by 25%
+            break
+        except Exception as e:
+            print(f"  ⚠️ Attempt {attempt} failed (landscape): {e}")
+            if attempt < max_retries:
+                wait_time = attempt * 5
+                print(f"    Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"  ❌ All {max_retries} attempts failed for landscape")
     
     time.sleep(5)  # Be nice to the free API
     return True
