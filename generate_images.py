@@ -146,8 +146,9 @@ def generate_end_page(page_number, output_dir, total_images):
     """Generate the end/thank you page illustration."""
     print(f"Generating end page ({total_images}/{total_images}): Thank You...")
     end_prompt = (
-        "A heartwarming children's book ending page with "
-        "'Thank You for Reading!' text, bright and cheerful colors"
+        "A colorful and cheerful illustration of a group of children "
+        "holding hands and smiling in a sunny park, with balloons and "
+        "flowers around them, celebrating friendship and happiness"
     )
     generate_image(end_prompt, f"{output_dir}/page_{page_number:02d}_end.png")
 

@@ -8,11 +8,17 @@ import re
 import math
 import numpy as np
 import random
+import qrcode
 from collections import Counter
 from variables import (
-    PAGE_WIDTH, PAGE_HEIGHT, BG_OPACITY_CENTER, BG_OPACITY_EDGE,
-    FONT_SIZE, LINE_SPACING, TEXT_MARGIN
+    PAGE_WIDTH as _PAGE_WIDTH, PAGE_HEIGHT as _PAGE_HEIGHT, 
+    BG_OPACITY_CENTER, BG_OPACITY_EDGE,
+    FONT_SIZE, LINE_SPACING, TEXT_MARGIN, ETSY_SHOP_URL
 )
+
+# Convert to integers for PIL compatibility
+PAGE_WIDTH = int(_PAGE_WIDTH)
+PAGE_HEIGHT = int(_PAGE_HEIGHT)
 
 # Layout constants
 HALF_HEIGHT = PAGE_HEIGHT // 2
@@ -735,10 +741,10 @@ def generate_cover_page(output_dir):
     
     if os.path.exists(bg_path):
         page = Image.open(bg_path).convert('RGB')
-        if page.size != (PAGE_WIDTH, PAGE_HEIGHT):
-            page = page.resize((PAGE_WIDTH, PAGE_HEIGHT), Image.Resampling.LANCZOS)
+        if page.size != (int(PAGE_WIDTH), int(PAGE_HEIGHT)):
+            page = page.resize((int(PAGE_WIDTH), int(PAGE_HEIGHT)), Image.Resampling.LANCZOS)
     else:
-        page = Image.new('RGB', (PAGE_WIDTH, PAGE_HEIGHT), (255, 255, 255))
+        page = Image.new('RGB', (int(PAGE_WIDTH), int(PAGE_HEIGHT)), (255, 255, 255))
     
     # Get book title and draw it
     title, _ = parse_story()
@@ -769,9 +775,74 @@ def generate_story_page(page_number, page_data, output_dir):
 
 
 def generate_end_page(page_number, output_dir):
-    """Generate the end/thank you page."""
+    """Generate the end/thank you page using background image like cover page."""
     bg_path = f"images/page_{page_number:02d}_end_bg.png"
-    page = create_page_with_background(bg_path)
+    
+    # Load background image like cover page does
+    if os.path.exists(bg_path):
+        page = Image.open(bg_path).convert('RGB')
+        if page.size != (int(PAGE_WIDTH), int(PAGE_HEIGHT)):
+            page = page.resize((int(PAGE_WIDTH), int(PAGE_HEIGHT)), Image.Resampling.LANCZOS)
+    else:
+        page = Image.new('RGB', (int(PAGE_WIDTH), int(PAGE_HEIGHT)), (255, 255, 255))
+    
+    draw = ImageDraw.Draw(page)
+    
+    # Load DynaPuff font
+    visit_font = get_font(30, font_type="story")  # 30pt for visit text
+    url_font = get_font(30, font_type="story")  # 30pt for URL
+    
+    black_color = (0, 0, 0)
+    white_color = (255, 255, 255)
+    
+    # Text content
+    visit_text = "Visit us at"
+    url_text = ETSY_SHOP_URL
+    
+    # Get text dimensions
+    visit_bbox = draw.textbbox((0, 0), visit_text, font=visit_font)
+    url_bbox = draw.textbbox((0, 0), url_text, font=url_font)
+    
+    visit_height = visit_bbox[3] - visit_bbox[1]
+    url_height = url_bbox[3] - url_bbox[1]
+    url_width = url_bbox[2] - url_bbox[0]
+    
+    # Generate QR code
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(url_text)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    qr_size = 150  # Size of QR code in pixels
+    qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
+    
+    # Spacing between lines
+    line_spacing = 40
+    qr_spacing = 30  # Space between URL and QR code
+    total_height = visit_height + line_spacing + url_height + qr_spacing + qr_size
+    
+    # Draw black background bar covering the bottom 1/6 of the page
+    black_bar_top = int(PAGE_HEIGHT * 5 // 6)
+    black_bar_height = PAGE_HEIGHT - black_bar_top
+    draw.rectangle([0, black_bar_top, PAGE_WIDTH, PAGE_HEIGHT], fill=black_color)
+    
+    # Center text vertically within the black bar
+    start_y = black_bar_top + (black_bar_height - total_height) // 2
+    
+    # Draw "Visit us at" centered (white text on black background)
+    visit_width = visit_bbox[2] - visit_bbox[0]
+    visit_x = (PAGE_WIDTH - visit_width) // 2
+    visit_y = start_y
+    draw.text((visit_x, visit_y), visit_text, font=visit_font, fill=white_color)
+    
+    # Draw URL (white text on black background - already on black bar)
+    url_x = (PAGE_WIDTH - url_width) // 2
+    url_y = visit_y + visit_height + line_spacing
+    draw.text((url_x, url_y), url_text, font=url_font, fill=white_color)
+    
+    # Paste QR code centered below URL
+    qr_x = (PAGE_WIDTH - qr_size) // 2
+    qr_y = url_y + url_height + qr_spacing
+    page.paste(qr_img, (qr_x, qr_y))
     
     output_path = os.path.join(output_dir, f"page_{page_number:02d}_end.png")
     page.save(output_path, dpi=(300, 300))

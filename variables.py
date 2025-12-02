@@ -4,8 +4,8 @@
 # Page dimensions: 6x9 inches at 300 DPI (for image generation)
 DPI = 300
 SCALE_FACTOR = 3
-PAGE_WIDTH = 6 * DPI   # 6 inches * 300 DPI
-PAGE_HEIGHT = 9 * DPI  # 9 inches * 300 DPI
+PAGE_WIDTH = 6.25 * DPI   # 6.25 inches * 300 DPI
+PAGE_HEIGHT = 9.25 * DPI  # 9.25 inches * 300 DPI
 
 # Image generation dimensions (pre-scaled, before SCALE_FACTOR is applied)
 IMAGE_GEN_WIDTH = PAGE_WIDTH // SCALE_FACTOR   # 600 pixels
@@ -23,3 +23,6 @@ BG_OPACITY_EDGE = 0.15    # 15% opacity at edges
 FONT_SIZE = 48
 LINE_SPACING = 2.0  # Line spacing multiplier
 TEXT_MARGIN = 100   # Margin from edges in pixels
+
+# Shop URL for end page
+ETSY_SHOP_URL = "https://www.etsy.com/shop/studiobadeshop"

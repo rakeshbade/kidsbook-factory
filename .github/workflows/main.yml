@@ -54,21 +54,9 @@ jobs:
         run: |
           python create_pdf.py
 
-      - name: Upload PDF to Google Drive (free rclone method)
-        env:
-          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
-        run: |
-          curl -s https://rclone.org/install.sh | sudo bash
-          mkdir -p ~/.config/rclone
-          echo "$RCLONE_CONFIG_GDRIVE_TOKEN" > ~/.config/rclone/rclone.conf
-          rclone copy "output/${{ github.run_number }}_${{ github.issue.title }}.pdf" gdrive:KidsBooks/
-
-      - name: Comment download link on issue
-        uses: actions-cool/issues-helper@v3
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
         with:
-          actions: 'create-comment'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.issue.number }}
-          body: |
-            📚 Book ready! Download print-ready PDF here:
-            https://drive.google.com/drive/folders/kids-story-books
+          name: storybook-pdf
+          path: output/*.pdf
+          retention-days: 30
