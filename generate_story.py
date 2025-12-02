@@ -12,7 +12,7 @@ Write a 20-page children's story. Return the response as a JSON array with exact
 Each object must have:
 - "page": the page number (1-20)
 - "story": the story text for that page (2-3 sentences, appropriate for ages 4-8)
-- "image": a detailed illustration prompt describing the scene in extreme detail for image generation
+- "image": a detailed illustration prompt describing the scene for the story on the page (suitable for AI image generation). The description should include characters, setting, colors, mood, and any important objects. Avoid mentioning about text or titles in the image. Avoid copyrighted characters or settings or any references to specific movies, TV shows, or books.
 
 Return ONLY valid JSON, no other text. Example format:
 [
@@ -40,13 +40,6 @@ except json.JSONDecodeError as e:
 # Save the full story JSON
 with open("story.json", "w") as f:
     json.dump(story_data, f, indent=2)
-
-# Also save story.txt for backward compatibility
-with open("story.txt", "w") as f:
-    for page in story_data:
-        f.write(f"**Page {page['page']}**\n")
-        f.write(f"{page['story']}\n")
-        f.write(f"IMAGE: {page['image']}\n\n")
 
 # Extract image prompts for backward compatibility
 image_prompts = [page["image"] for page in story_data]

@@ -1,12 +1,7 @@
 # resize_images.py
 from PIL import Image, ImageEnhance, ImageFilter
 import os
-
-# Print quality DPI
-DPI = 300
-# Scale factor: multiply original dimensions by this to get print-ready size
-# e.g., 600x900 image becomes 1800x2700 (3x scale)
-SCALE_FACTOR = 3
+from variables import DPI, SCALE_FACTOR
 
 
 def resize_image(input_path, output_path=None):

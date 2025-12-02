@@ -3,10 +3,11 @@ from reportlab.pdfgen import canvas
 from PIL import Image
 import os
 import json
+from variables import PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT
 
 # 6 × 9 inch page size (standard children's book)
-PAGE_WIDTH = 6 * 72   # 432 points
-PAGE_HEIGHT = 9 * 72  # 648 points
+PAGE_WIDTH = PDF_PAGE_WIDTH
+PAGE_HEIGHT = PDF_PAGE_HEIGHT
 size = (PAGE_WIDTH, PAGE_HEIGHT)
 
 # Create output directory
@@ -34,7 +35,7 @@ if not page_files:
     raise FileNotFoundError("No page images found in pages/ directory.")
 
 print(f"\nCreating PDF with {len(page_files)} pages...")
-print(f"Page size: 6×9 inches ({PAGE_WIDTH}×{PAGE_HEIGHT} points)")
+print(f"Page size: ({PAGE_WIDTH}×{PAGE_HEIGHT} points)")
 print("=" * 60)
 
 for page_file in page_files:

@@ -73,19 +73,20 @@ def generate_story_prompt():
     
     # Now generate a children's story prompt based on the movie
     story_prompt = f"""
-    Based on the following movie information, create a children's storybook concept 
+    Based on the following movie information, create a children's storybook concept without copyright issues
     for ages 4-8 years old:
     
-    Movie: {movie_info.get('movie_name', 'Adventure Movie')}
-    Genre: {movie_info.get('genre', 'adventure')}
-    Protagonist Name: {movie_info.get('protagonist_name', 'Alex')}
-    Theme: {movie_info.get('movie_theme', 'adventure and friendship')}
+    Movie: {movie_info.get('movie_name')}
+    Genre: {movie_info.get('genre')}
+    Protagonist Name: {movie_info.get('protagonist_name')}
+    Theme: {movie_info.get('movie_theme')}
     
     Create a NEW, ORIGINAL children's story that:
     1. Uses the SAME protagonist name as the movie
     2. Follows a SIMILAR genre and theme (but age-appropriate for 4-8 year olds)
     3. Has a positive message about friendship, courage, kindness, or learning
     4. Is engaging with colorful, imaginative scenes perfect for illustration
+    5. Is NOT a retelling of the movie, but inspired by its themes
     
     Provide your response in this exact format:
     
@@ -96,7 +97,7 @@ def generate_story_prompt():
     STORY PROMPT: [A detailed prompt that will be used to generate a 20-page illustrated children's book. 
     Include the main character, setting, plot points, and the lesson/moral of the story.]
     
-    Make sure the content is 100% appropriate for young children (ages 4-8).
+    Make sure the content is 100% appropriate for young children (ages 4-8) and free of any copyrighted material.
     """
     
     story_response = model.generate_content(story_prompt)
