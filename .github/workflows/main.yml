@@ -2,8 +2,7 @@
 name: Create Children's Book
 
 on:
-  issues:
-    types: [opened]
+  workflow_dispatch:
 
 jobs:
   generate-book:
@@ -20,21 +19,10 @@ jobs:
       - name: Install dependencies
         run: pip install requests pillow reportlab google-generativeai huggingface_hub
 
-      - name: Extract prompt from issue
-        run: |
-          python -c "
-          import os, json
-          payload = json.loads(open(os.environ['GITHUB_EVENT_PATH']).read())
-          title = payload['issue']['title']
-          body = payload['issue']['body']
-          with open('prompt.txt', 'w') as f:
-            f.write(f'Title: {title}\n\nStory prompt: {body}\nGenerate exactly 20 pages with one illustration prompt per page.')
-          "
-      # - name: Generate prompt
-      #   env:
-      #     GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      #   run: |
-      #     python generate_prompt.py
+      - name: Generate prompt
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python generate_prompt.py
 
       - name: Generate story
         env:
