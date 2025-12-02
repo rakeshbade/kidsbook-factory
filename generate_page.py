@@ -112,6 +112,31 @@ def get_light_color(image_path, num_colors=50):
         return DEFAULT_LIGHT_COLOR
 
 
+def get_brightest_color(image_path, num_colors=50):
+    """Extract the brightest vibrant color from an image."""
+    try:
+        valid_colors = _extract_quantized_colors(image_path, num_colors)
+        if not valid_colors:
+            return (255, 255, 255)
+        
+        # Find the brightest color (highest sum of RGB)
+        brightest = max(valid_colors, key=lambda x: sum(x[0]))
+        r, g, b = brightest[0]
+        # Boost brightness while keeping hue
+        max_val = max(r, g, b)
+        if max_val > 0:
+            factor = min(255 / max_val, 1.3)
+            return (
+                min(255, int(r * factor)),
+                min(255, int(g * factor)),
+                min(255, int(b * factor))
+            )
+        return (255, 255, 255)
+    except Exception as e:
+        print(f"    ⚠️ Could not extract brightest color: {e}")
+        return (255, 255, 255)
+
+
 def _draw_wave_edge(draw, width, height, wave_height, wave_count,
                     at_top=False):
     """Draw a sine wave edge pattern on a mask."""
@@ -328,7 +353,14 @@ def create_page_with_background(bg_image_path, main_image_path=None):
 # Font configuration
 FONT_PATHS = {
     "title": ["fonts/Pacifico-Regular.ttf", "fonts/DynaPuff-Regular.ttf"],
-    "story": ["fonts/DynaPuff-Regular.ttf", "fonts/Pacifico-Regular.ttf"]
+    "story": ["fonts/DynaPuff-Regular.ttf", "fonts/Pacifico-Regular.ttf"],
+    "cover_title": [
+        "fonts/titles/Slackey-Regular.ttf",
+        "fonts/titles/Ranchers-Regular.ttf",
+        "fonts/titles/Peralta-Regular.ttf",
+        "fonts/titles/IrishGrover-Regular.ttf",
+        "fonts/titles/BraahOne-Regular.ttf"
+    ]
 }
 
 
@@ -371,8 +403,18 @@ def wrap_text(text, font, max_width, draw):
 
 
 def draw_centered_text(draw, text, font, area_top, area_height,
-                       text_color=(0, 0, 0)):
-    """Draw text centered horizontally and vertically in the given area."""
+                       text_color=(0, 0, 0), shadow_offset=1):
+    """Draw text centered horizontally and vertically in the given area.
+    
+    Args:
+        draw: ImageDraw object
+        text: Text to draw
+        font: Font to use
+        area_top: Top Y coordinate of the text area
+        area_height: Height of the text area
+        text_color: RGB tuple for text color
+        shadow_offset: Offset for shadow effect (default 2 pixels)
+    """
     max_width = PAGE_WIDTH - (2 * TEXT_MARGIN)
     
     # Wrap text to fit width
@@ -385,12 +427,24 @@ def draw_centered_text(draw, text, font, area_top, area_height,
     # Calculate starting Y position to center vertically
     start_y = area_top + (area_height - total_text_height) // 2
     
+    # Calculate shadow color (semi-transparent dark version)
+    shadow_color = (
+        max(0, text_color[0] // 4),
+        max(0, text_color[1] // 4),
+        max(0, text_color[2] // 4)
+    )
+    
     # Draw each line centered horizontally
     for i, line in enumerate(lines):
         bbox = draw.textbbox((0, 0), line, font=font)
         text_width = bbox[2] - bbox[0]
         x = (PAGE_WIDTH - text_width) // 2
         y = start_y + (i * line_height)
+        
+        # Draw shadow first (offset down and right)
+        draw.text((x + shadow_offset, y + shadow_offset), line, font=font, fill=shadow_color)
+        
+        # Draw main text on top
         draw.text((x, y), line, font=font, fill=text_color)
 
 
@@ -480,8 +534,203 @@ def create_story_page_with_image_and_text(page_number, bg_image_path, main_image
     
     return page
 
+# Cover title settings
+COVER_TITLE_FONT_SIZE = 144
+COVER_TITLE_SHADOW_OFFSET = 6
+COVER_TITLE_OUTLINE_WIDTH = 2
+COVER_TITLE_LETTER_SPACING = 8  # Extra pixels between letters
+COVER_TITLE_3D_DEPTH = 15  # Number of shadow layers for 3D effect
+COVER_TITLE_LINE_HEIGHT = 1.1  # Tighter line spacing for title
+
+
+def _extract_colors_from_region(image_path, top_fraction=0, bottom_fraction=1):
+    """Extract colors from a specific vertical region of the image.
+    
+    Args:
+        image_path: Path to the image
+        top_fraction: Start of region (0-1, from top)
+        bottom_fraction: End of region (0-1, from top)
+    """
+    try:
+        img = Image.open(image_path).convert('RGB')
+        width, height = img.size
+        
+        # Crop to the specified region
+        top = int(height * top_fraction)
+        bottom = int(height * bottom_fraction)
+        region = img.crop((0, top, width, bottom))
+        region = region.resize((100, 100), Image.Resampling.LANCZOS)
+        
+        # Quantize pixels
+        pixels = list(region.getdata())
+        quantized = [
+            ((r // COLOR_QUANTIZE_LEVELS) * COLOR_QUANTIZE_LEVELS,
+             (g // COLOR_QUANTIZE_LEVELS) * COLOR_QUANTIZE_LEVELS,
+             (b // COLOR_QUANTIZE_LEVELS) * COLOR_QUANTIZE_LEVELS)
+            for r, g, b in pixels
+        ]
+        
+        color_counts = Counter(quantized)
+        most_common = color_counts.most_common(50)
+        
+        # Score colors by vibrancy
+        valid_colors = []
+        for color, count in most_common:
+            r, g, b = color
+            max_c, min_c = max(r, g, b), min(r, g, b)
+            if max_c < MIN_BRIGHTNESS:
+                continue
+            saturation = (max_c - min_c) / max_c if max_c > 0 else 0
+            if saturation < MIN_SATURATION:
+                continue
+            score = (saturation * 300) + max_c
+            valid_colors.append((color, score))
+        
+        if not valid_colors:
+            for color, count in most_common:
+                max_c = max(color)
+                if max_c > 50:
+                    valid_colors.append((color, max_c))
+        
+        valid_colors.sort(key=lambda x: x[1], reverse=True)
+        return valid_colors
+    except Exception:
+        return []
+
+
+def draw_cover_title(draw, title, font, title_area_height, image_path):
+    """Draw the book title on the cover with shadow and outline.
+    
+    Args:
+        draw: ImageDraw object
+        title: Title text to draw
+        font: Font to use
+        title_area_height: Height of the title area (top 1/3 of page)
+        image_path: Path to cover image for color extraction
+    """
+    # Get colors from bottom 2/3 of image (not the title area) for contrast
+    if os.path.exists(image_path):
+        # Extract colors from bottom 2/3 of image
+        region_colors = _extract_colors_from_region(image_path, 1/3, 1)
+        
+        if region_colors:
+            # Find the MOST SATURATED color (not just brightest)
+            def get_saturation(color):
+                r, g, b = color[0]
+                max_c, min_c = max(r, g, b), min(r, g, b)
+                return (max_c - min_c) / max_c if max_c > 0 else 0
+            
+            most_saturated = max(region_colors, key=get_saturation)
+            r, g, b = most_saturated[0]
+            
+            # Determine the dominant channel and create a pure vibrant color
+            max_val = max(r, g, b)
+            if max_val > 0:
+                # Normalize to find dominant color channel
+                r_norm, g_norm, b_norm = r / max_val, g / max_val, b / max_val
+                
+                # Push towards pure colors - amplify differences
+                boost = 3.0
+                r_new = min(255, int(128 + (r_norm - 0.5) * 255 * boost))
+                g_new = min(255, int(128 + (g_norm - 0.5) * 255 * boost))
+                b_new = min(255, int(128 + (b_norm - 0.5) * 255 * boost))
+                
+                # Clamp and ensure at least one channel is at max
+                r_new = max(0, min(255, r_new))
+                g_new = max(0, min(255, g_new))
+                b_new = max(0, min(255, b_new))
+                
+                # Boost the maximum channel to 255
+                current_max = max(r_new, g_new, b_new)
+                if current_max > 0:
+                    factor = 255 / current_max
+                    title_color = (
+                        min(255, int(r_new * factor)),
+                        min(255, int(g_new * factor)),
+                        min(255, int(b_new * factor))
+                    )
+                else:
+                    title_color = (255, 220, 0)  # Vibrant golden yellow
+            else:
+                title_color = (255, 220, 0)  # Vibrant golden yellow
+            
+            # Get very dark color for shadow - near black
+            r, g, b = region_colors[0][0]
+            shadow_color = (
+                max(0, int(r * 0.15)),
+                max(0, int(g * 0.15)),
+                max(0, int(b * 0.15))
+            )
+        else:
+            title_color = (255, 220, 0)  # Vibrant golden yellow
+            shadow_color = (0, 0, 0)
+    else:
+        title_color = (255, 220, 0)  # Vibrant golden yellow
+        shadow_color = (0, 0, 0)
+    
+    # Outline color (contrast border) - use pure black for maximum contrast
+    outline_color = (0, 0, 0)
+    
+    def get_text_width_with_spacing(text, font, spacing):
+        """Calculate total width of text with letter spacing."""
+        total_width = 0
+        for char in text:
+            bbox = draw.textbbox((0, 0), char, font=font)
+            total_width += (bbox[2] - bbox[0]) + spacing
+        return total_width - spacing if text else 0  # Remove trailing spacing
+    
+    def draw_text_with_spacing(x, y, text, font, fill, spacing):
+        """Draw text character by character with custom letter spacing."""
+        current_x = x
+        for char in text:
+            draw.text((current_x, y), char, font=font, fill=fill)
+            bbox = draw.textbbox((0, 0), char, font=font)
+            char_width = bbox[2] - bbox[0]
+            current_x += char_width + spacing
+    
+    max_width = PAGE_WIDTH - (2 * TEXT_MARGIN)
+    
+    # Wrap text to fit width (accounting for letter spacing)
+    lines = wrap_text(title, font, max_width - (len(title) * COVER_TITLE_LETTER_SPACING), draw)
+    
+    # Calculate total text height
+    line_height = int(COVER_TITLE_FONT_SIZE * COVER_TITLE_LINE_HEIGHT)
+    total_text_height = len(lines) * line_height
+    
+    # Calculate starting Y position to center vertically in title area
+    start_y = (title_area_height - total_text_height) // 2
+    
+    # Draw each line centered horizontally
+    for i, line in enumerate(lines):
+        text_width = get_text_width_with_spacing(line, font, COVER_TITLE_LETTER_SPACING)
+        x = (PAGE_WIDTH - text_width) // 2
+        y = start_y + (i * line_height)
+        
+        # Draw 3D shadow effect (multiple layers from back to front)
+        for depth in range(COVER_TITLE_3D_DEPTH, 0, -1):
+            # Calculate shadow color - darker layers further back
+            fade = depth / COVER_TITLE_3D_DEPTH
+            layer_color = (
+                int(shadow_color[0] * (1 - fade * 0.5)),
+                int(shadow_color[1] * (1 - fade * 0.5)),
+                int(shadow_color[2] * (1 - fade * 0.5))
+            )
+            shadow_x = x + depth
+            shadow_y = y + depth
+            draw_text_with_spacing(shadow_x, shadow_y, line, font, layer_color, COVER_TITLE_LETTER_SPACING)
+        
+        # Draw outline/border (draw text in 8 directions around main text)
+        for dx in [-COVER_TITLE_OUTLINE_WIDTH, 0, COVER_TITLE_OUTLINE_WIDTH]:
+            for dy in [-COVER_TITLE_OUTLINE_WIDTH, 0, COVER_TITLE_OUTLINE_WIDTH]:
+                if dx != 0 or dy != 0:
+                    draw_text_with_spacing(x + dx, y + dy, line, font, outline_color, COVER_TITLE_LETTER_SPACING)
+        
+        # Draw main title text
+        draw_text_with_spacing(x, y, line, font, title_color, COVER_TITLE_LETTER_SPACING)
+
+
 def generate_cover_page(output_dir):
-    """Generate the cover page using the original cover image."""
+    """Generate the cover page using the original cover image with title."""
     bg_path = "images/page_00_cover_bg.png"
     
     if os.path.exists(bg_path):
@@ -490,6 +739,14 @@ def generate_cover_page(output_dir):
             page = page.resize((PAGE_WIDTH, PAGE_HEIGHT), Image.Resampling.LANCZOS)
     else:
         page = Image.new('RGB', (PAGE_WIDTH, PAGE_HEIGHT), (255, 255, 255))
+    
+    # Get book title and draw it
+    title, _ = parse_story()
+    draw = ImageDraw.Draw(page)
+    title_font = get_font(COVER_TITLE_FONT_SIZE, font_type="cover_title")
+    title_area_height = PAGE_HEIGHT // 3  # Top 1/3 of the page
+    
+    draw_cover_title(draw, title, title_font, title_area_height, bg_path)
     
     output_path = os.path.join(output_dir, "page_00_cover.png")
     page.save(output_path, dpi=(300, 300))
